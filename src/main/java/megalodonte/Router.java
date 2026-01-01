@@ -3,6 +3,7 @@ package megalodonte;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import megalodonte.components.Component;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Set;
