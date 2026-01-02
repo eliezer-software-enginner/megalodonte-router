@@ -1,13 +1,13 @@
-package megalodonte;
+package megalodonte.router;
 
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import megalodonte.components.Component;
-import megalodonte.router.RouteNotFoundException;
-import megalodonte.router.RouteParamsAware;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -24,6 +24,15 @@ public class Router {
 
     //private record InnerScreenType(Class<?> screenClass, Scene scene){}
     private record InnerData(Route route, Scene scene){}
+
+    private record SpawnedWindow(
+            String identification,
+            Route route,
+            Stage stage
+    ) {}
+
+    private final List<SpawnedWindow> spawnedWindows = new ArrayList<>();
+
 
     public Router(Set<Route> routes, String entrypointScreenName, Stage mainStage) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         this.routes = routes;
@@ -86,16 +95,58 @@ public class Router {
             stage.setScene(scene);
             stage.show();
 
+            var resolved = resolveRoute(screenIdentification);
+
+            spawnedWindows.add(
+                    new SpawnedWindow(
+                            screenIdentification,
+                            resolved.route(),
+                            stage
+                    )
+            );
+
+            // remove automaticamente ao fechar manualmente
+            stage.setOnHidden(e ->
+                    spawnedWindows.removeIf(w -> w.stage() == stage)
+            );
+
         } catch (Exception e) {
             errorHandler.accept(e);
         }
     }
+
 
     public void spawnWindow(String screenIdentification) {
         spawnWindow(screenIdentification, e -> {
             throw new RuntimeException(e);
         });
     }
+
+    /**
+     * Fecha a ultima janela aberta
+     */
+    public void closeSpawn() {
+        if (spawnedWindows.isEmpty()) return;
+
+        var last = spawnedWindows.remove(spawnedWindows.size() - 1);
+        last.stage().close();
+    }
+
+    public void closeSpawn(String identification) {
+        var it = spawnedWindows.iterator();
+
+        while (it.hasNext()) {
+            var window = it.next();
+
+            if (window.identification().equals(identification)) {
+                window.stage().close();
+                it.remove();
+                return;
+            }
+        }
+    }
+
+
 
     private Scene generateSceneFromIdentificationRoute(
             String identification,
