@@ -56,10 +56,7 @@ public class Router {
         return null;
         }
 
-    private record ResolvedRoute(
-            Route route,
-            java.util.Map<String, String> params
-    ) {}
+
 
     public void navigateTo(String screenName) {
         try{
@@ -109,7 +106,7 @@ public class Router {
         var route = resolved.route();
         var params = resolved.params();
 
-        stage.setTitle(route.props().name());
+        stage.setTitle(route.props().name() == null? mainStage.getTitle() : route.props.name());
 
         var screenObj = route.routerObjectFunction().apply(this);
 
@@ -130,6 +127,10 @@ public class Router {
         );
     }
 
+    private record ResolvedRoute(
+            Route route,
+            java.util.Map<String, String> params
+    ) {}
     private ResolvedRoute resolveRoute(String path) {
 
         var pathParts = path.split("/");
