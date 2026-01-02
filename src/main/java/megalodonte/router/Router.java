@@ -9,6 +9,17 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Central routing manager responsible for navigation and window spawning.
+ *
+ * <p>The Router handles:</p>
+ * <ul>
+ *   <li>Main window navigation</li>
+ *   <li>Dynamic route matching</li>
+ *   <li>Secondary window lifecycle management</li>
+ *   <li>Route parameter injection</li>
+ * </ul>
+ */
 public class Router {
 
     /**
@@ -43,6 +54,14 @@ public class Router {
 
     private final List<SpawnedWindow> spawnedWindows = new ArrayList<>();
 
+    /**
+     * Creates a new Router instance and initializes the entrypoint route.
+     *
+     * @param routes all registered application routes
+     * @param entrypointScreenName initial route identification
+     * @param mainStage primary application stage
+     * @throws ReflectiveOperationException if screen instantiation fails
+     */
     public Router(
             Set<Route> routes,
             String entrypointScreenName,
@@ -58,6 +77,8 @@ public class Router {
 
     /**
      * Navigates the main stage to a given route.
+     *
+     * @param screenIdentification route identification to navigate to
      */
     public void navigateTo(String screenIdentification) {
         navigateTo(screenIdentification, e -> {});
@@ -65,6 +86,9 @@ public class Router {
 
     /**
      * Navigates the main stage to a given route with error handling.
+     *
+     * @param screenIdentification route identification to navigate to
+     * @param errorHandler callback invoked if navigation fails
      */
     public void navigateTo(
             String screenIdentification,
@@ -80,6 +104,9 @@ public class Router {
 
     /**
      * Spawns a new window for the given route.
+     *
+     * @param screenIdentification route identification to spawn
+     * @param errorHandler callback invoked if spawning fails
      */
     public void spawnWindow(
             String screenIdentification,
@@ -112,7 +139,9 @@ public class Router {
     }
 
     /**
-     * Spawns a new window and throws runtime exception on error.
+     * Spawns a new window and throws a runtime exception on error.
+     *
+     * @param screenIdentification route identification to spawn
      */
     public void spawnWindow(String screenIdentification) {
         spawnWindow(screenIdentification, RuntimeException::new);
@@ -130,6 +159,8 @@ public class Router {
 
     /**
      * Closes a spawned window by its route identification.
+     *
+     * @param identification route identification of the window to close
      */
     public void closeSpawn(String identification) {
         Iterator<SpawnedWindow> it = spawnedWindows.iterator();
@@ -146,6 +177,11 @@ public class Router {
 
     /**
      * Resolves a route and builds its Scene.
+     *
+     * @param identification route identification
+     * @param targetStage stage where the scene will be applied
+     * @return the resolved JavaFX Scene
+     * @throws ReflectiveOperationException if rendering fails
      */
     private Scene resolveAndCreateScene(
             String identification,
@@ -171,6 +207,10 @@ public class Router {
 
     /**
      * Instantiates a screen and injects route parameters if supported.
+     *
+     * @param route resolved route
+     * @param params extracted route parameters
+     * @return instantiated screen
      */
     private Object instantiateScreen(
             Route route,
@@ -187,6 +227,11 @@ public class Router {
 
     /**
      * Builds a JavaFX Scene from a screen instance.
+     *
+     * @param screen instantiated screen
+     * @param route resolved route
+     * @return constructed JavaFX Scene
+     * @throws ReflectiveOperationException if render method invocation fails
      */
     private Scene buildScene(Object screen, Route route)
             throws ReflectiveOperationException {
