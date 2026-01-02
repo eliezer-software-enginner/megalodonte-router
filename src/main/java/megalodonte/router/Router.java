@@ -5,26 +5,36 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import megalodonte.components.Component;
 
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class Router {
-    //900, 700, Cadastro de produtos
-    public record RouteProps(int screenWidth, int screenHeight, String name){}
-    //public record Route(RouteType type, Class<?> klass, RouteProps props){}
 
-    //identification pode ser: cad-prod ou cad-prod/${}, exemplo cad-prod/${id}
-    public record Route(String identification, Function<Router, Object> routerObjectFunction, RouteProps props){}
+    /**
+     * Route UI metadata.
+     */
+    public record RouteProps(int screenWidth, int screenHeight, String name) {}
+
+    /**
+     * Route definition.
+     *
+     * @param identification route path (static or dynamic, e.g. cad-prod/${id})
+     * @param routerObjectFunction factory responsible for creating the screen instance
+     * @param props visual configuration of the route
+     */
+    public record Route(
+            String identification,
+            Function<Router, Object> routerObjectFunction,
+            RouteProps props
+    ) {}
+
     private final Set<Route> routes;
     private final Stage mainStage;
 
-    //private record InnerScreenType(Class<?> screenClass, Scene scene){}
-    private record InnerData(Route route, Scene scene){}
-
+    /**
+     * Represents a spawned (secondary) window managed by the router.
+     */
     private record SpawnedWindow(
             String identification,
             Route route,
@@ -33,69 +43,56 @@ public class Router {
 
     private final List<SpawnedWindow> spawnedWindows = new ArrayList<>();
 
+    public Router(
+            Set<Route> routes,
+            String entrypointScreenName,
+            Stage mainStage
+    ) throws ReflectiveOperationException {
 
-    public Router(Set<Route> routes, String entrypointScreenName, Stage mainStage) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         this.routes = routes;
-        //private final Class<?> entrypointScreen;
         this.mainStage = mainStage;
 
-        //cada screen tem sua scene atrelada a ela
-        //obter a rota que contém a entrypoint
-
-        final var scene = generateSceneFromScreenName(entrypointScreenName);
+        Scene scene = resolveAndCreateScene(entrypointScreenName, mainStage);
         mainStage.setScene(scene);
     }
 
-    private Scene generateSceneFromScreenName(String name) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        var opRoute = this.routes.stream().filter(route -> route.identification().equals(name)).findFirst();
-
-        if(opRoute.isPresent()) {
-            final var route = opRoute.get();
-
-            mainStage.setTitle(route.props().name() == null? mainStage.getTitle() : route.props.name());
-
-            final var screenObj = route.routerObjectFunction.apply(this);
-            final var entrypointScreenClass = screenObj.getClass();
-
-            var component = (Component) entrypointScreenClass.getMethod("render").invoke(screenObj);
-            final var scene = new Scene((Parent) component.getNode(), route.props.screenWidth(), route.props.screenHeight());
-
-            return scene;
-        }
-        return null;
-        }
-
-
-
-    public void navigateTo(String screenName) {
-        try{
-            final var scene = generateSceneFromScreenName(screenName);
-            mainStage.setScene(scene);
-        }catch (Exception e){
-        }
+    /**
+     * Navigates the main stage to a given route.
+     */
+    public void navigateTo(String screenIdentification) {
+        navigateTo(screenIdentification, e -> {});
     }
 
-    public void navigateTo(String screenName, Consumer<Exception> errorHandler) {
-        try{
-            final var scene = generateSceneFromScreenName(screenName);
+    /**
+     * Navigates the main stage to a given route with error handling.
+     */
+    public void navigateTo(
+            String screenIdentification,
+            Consumer<Exception> errorHandler
+    ) {
+        try {
+            Scene scene = resolveAndCreateScene(screenIdentification, mainStage);
             mainStage.setScene(scene);
-        }catch (Exception e){
+        } catch (Exception e) {
             errorHandler.accept(e);
         }
     }
 
+    /**
+     * Spawns a new window for the given route.
+     */
     public void spawnWindow(
             String screenIdentification,
             Consumer<Exception> errorHandler
     ) {
         try {
-            var stage = new Stage();
-            var scene = generateSceneFromIdentificationRoute(screenIdentification, stage);
+            Stage stage = new Stage();
+            Scene scene = resolveAndCreateScene(screenIdentification, stage);
 
             stage.setScene(scene);
             stage.show();
 
-            var resolved = resolveRoute(screenIdentification);
+            ResolvedRoute resolved = resolveRoute(screenIdentification);
 
             spawnedWindows.add(
                     new SpawnedWindow(
@@ -105,7 +102,6 @@ public class Router {
                     )
             );
 
-            // remove automaticamente ao fechar manualmente
             stage.setOnHidden(e ->
                     spawnedWindows.removeIf(w -> w.stage() == stage)
             );
@@ -115,29 +111,31 @@ public class Router {
         }
     }
 
-
+    /**
+     * Spawns a new window and throws runtime exception on error.
+     */
     public void spawnWindow(String screenIdentification) {
-        spawnWindow(screenIdentification, e -> {
-            throw new RuntimeException(e);
-        });
+        spawnWindow(screenIdentification, RuntimeException::new);
     }
 
     /**
-     * Fecha a ultima janela aberta
+     * Closes the most recently spawned window.
      */
     public void closeSpawn() {
         if (spawnedWindows.isEmpty()) return;
 
-        var last = spawnedWindows.remove(spawnedWindows.size() - 1);
+        SpawnedWindow last = spawnedWindows.remove(spawnedWindows.size() - 1);
         last.stage().close();
     }
 
+    /**
+     * Closes a spawned window by its route identification.
+     */
     public void closeSpawn(String identification) {
-        var it = spawnedWindows.iterator();
+        Iterator<SpawnedWindow> it = spawnedWindows.iterator();
 
         while (it.hasNext()) {
-            var window = it.next();
-
+            SpawnedWindow window = it.next();
             if (window.identification().equals(identification)) {
                 window.stage().close();
                 it.remove();
@@ -146,30 +144,57 @@ public class Router {
         }
     }
 
-
-
-    private Scene generateSceneFromIdentificationRoute(
+    /**
+     * Resolves a route and builds its Scene.
+     */
+    private Scene resolveAndCreateScene(
             String identification,
-            Stage stage
+            Stage targetStage
     ) throws ReflectiveOperationException {
 
-        var resolved = resolveRoute(identification);
-        var route = resolved.route();
-        var params = resolved.params();
+        ResolvedRoute resolved = resolveRoute(identification);
+        Route route = resolved.route();
 
-        stage.setTitle(route.props().name() == null? mainStage.getTitle() : route.props.name());
+        applyStageTitle(targetStage, route);
 
-        var screenObj = route.routerObjectFunction().apply(this);
+        Object screen = instantiateScreen(route, resolved.params());
+        return buildScene(screen, route);
+    }
 
-        // INJETANDO PARAMS SE EXISTIR
-        if (screenObj instanceof RouteParamsAware aware) {
+    /**
+     * Applies the route title to the given stage.
+     */
+    private void applyStageTitle(Stage stage, Route route) {
+        String title = route.props().name();
+        stage.setTitle(title != null ? title : mainStage.getTitle());
+    }
+
+    /**
+     * Instantiates a screen and injects route parameters if supported.
+     */
+    private Object instantiateScreen(
+            Route route,
+            Map<String, String> params
+    ) {
+        Object screen = route.routerObjectFunction().apply(this);
+
+        if (screen instanceof RouteParamsAware aware) {
             aware.onRouteParams(params);
         }
 
-        var component = (Component) screenObj
+        return screen;
+    }
+
+    /**
+     * Builds a JavaFX Scene from a screen instance.
+     */
+    private Scene buildScene(Object screen, Route route)
+            throws ReflectiveOperationException {
+
+        Component component = (Component) screen
                 .getClass()
                 .getMethod("render")
-                .invoke(screenObj);
+                .invoke(screen);
 
         return new Scene(
                 (Parent) component.getNode(),
@@ -178,28 +203,35 @@ public class Router {
         );
     }
 
+    /**
+     * Represents a resolved route with extracted parameters.
+     */
     private record ResolvedRoute(
             Route route,
-            java.util.Map<String, String> params
+            Map<String, String> params
     ) {}
+
+    /**
+     * Resolves a route path, supporting dynamic segments.
+     */
     private ResolvedRoute resolveRoute(String path) {
 
-        var pathParts = path.split("/");
+        String[] pathParts = path.split("/");
 
-        for (var route : routes) {
-            var routeParts = route.identification().split("/");
+        for (Route route : routes) {
+            String[] routeParts = route.identification().split("/");
 
             if (routeParts.length != pathParts.length) continue;
 
-            var params = new java.util.HashMap<String, String>();
+            Map<String, String> params = new HashMap<>();
             boolean matched = true;
 
             for (int i = 0; i < routeParts.length; i++) {
-                var rp = routeParts[i];
-                var pp = pathParts[i];
+                String rp = routeParts[i];
+                String pp = pathParts[i];
 
                 if (rp.startsWith("${") && rp.endsWith("}")) {
-                    var key = rp.substring(2, rp.length() - 1);
+                    String key = rp.substring(2, rp.length() - 1);
                     params.put(key, pp);
                 } else if (!rp.equals(pp)) {
                     matched = false;
@@ -214,31 +246,4 @@ public class Router {
 
         throw new RouteNotFoundException(path);
     }
-
-
-//    private Scene generateSceneFromIdentificationRoute(
-//            String identification,
-//            Stage stage
-//    ) throws ReflectiveOperationException {
-//
-//        final var route = this.routes.stream()
-//                .filter(r -> r.identification().equals(identification))
-//                .findFirst()
-//                .orElseThrow(() -> new RouteNotFoundException(identification));
-//
-//        stage.setTitle(route.props().name());
-//
-//        final var screenObj = route.routerObjectFunction().apply(this);
-//        final var screenClass = screenObj.getClass();
-//
-//        final var component = (Component) screenClass
-//                .getMethod("render")
-//                .invoke(screenObj);
-//
-//        return new Scene(
-//                (Parent) component.getNode(),
-//                route.props().screenWidth(),
-//                route.props().screenHeight()
-//        );
-//    }
 }
