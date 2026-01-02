@@ -43,7 +43,7 @@ public class Router {
         if(opRoute.isPresent()) {
             final var route = opRoute.get();
 
-            var identification = route.identification;
+            mainStage.setTitle(route.props().name() == null? mainStage.getTitle() : route.props.name());
 
             final var screenObj = route.routerObjectFunction.apply(this);
             final var entrypointScreenClass = screenObj.getClass();
