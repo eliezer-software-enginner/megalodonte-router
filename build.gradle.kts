@@ -18,6 +18,10 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
     }
+
+    // gerar javadoc
+    withSourcesJar()
+    withJavadocJar()
 }
 
 
