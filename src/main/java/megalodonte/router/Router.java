@@ -25,7 +25,7 @@ public class Router {
     /**
      * Route UI metadata.
      */
-    public record RouteProps(int screenWidth, int screenHeight, String name) {}
+    public record RouteProps(int screenWidth, int screenHeight, String name, boolean screenIsExpandable) {}
 
     /**
      * Route definition.
@@ -192,6 +192,7 @@ public class Router {
         Route route = resolved.route();
 
         applyStageTitle(targetStage, route);
+        targetStage.setResizable(route.props().screenIsExpandable);
 
         Object screen = instantiateScreen(route, resolved.params());
         return buildScene(screen, route);
