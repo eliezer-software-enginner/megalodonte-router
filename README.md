@@ -169,6 +169,57 @@ scenes.
 
 ------------------------------------------------------------------------
 
+## Smart Navigation (New Feature)
+
+The router now supports intelligent navigation that automatically targets the currently active stage:
+
+### Active Stage Management
+``` java
+// Get current active stage
+Stage activeStage = router.getCurrentActiveStage();
+
+// Focus back to main stage
+router.focusMainStage();
+```
+
+### Smart Navigation Behavior
+``` java
+// Start with main stage active
+Router router = new Router(routes, "home", mainStage);
+
+// Navigate on main window
+router.navigateTo("about"); // Uses main stage
+
+// Spawn new window (automatically becomes active)
+router.spawnWindow("user/123");
+
+// Navigation now targets spawned window
+router.navigateTo("profile"); // Navigates in spawned window, not main!
+
+// Return to main stage
+router.focusMainStage();
+router.navigateTo("settings"); // Back to main stage
+```
+
+### Use Cases
+
+**Multi-Window Applications:**
+- Spawn independent windows for different workflows
+- Navigation automatically follows user focus
+- Easy switching between windows
+
+**Tabbed Interfaces:**
+- Each tab can have its own navigation context
+- Router tracks which tab is active
+- Navigation happens in the correct context
+
+**Dialog-based Flows:**
+- Open modal windows for specific tasks
+- Navigation stays within the dialog
+- Return to parent when dialog closes
+
+------------------------------------------------------------------------
+
 ## Design Philosophy
 
 -   No magic

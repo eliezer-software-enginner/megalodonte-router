@@ -14,11 +14,37 @@ import java.util.function.Function;
  *
  * <p>The Router handles:</p>
  * <ul>
- *   <li>Main window navigation</li>
+ *   <li>Smart navigation to the currently active stage</li>
  *   <li>Dynamic route matching</li>
  *   <li>Secondary window lifecycle management</li>
  *   <li>Route parameter injection</li>
+ *   <li>Active stage tracking and focus management</li>
  * </ul>
+ *
+ * <p>Navigation Behavior:</p>
+ * <ul>
+ *   <li>navigateTo() always navigates the currently active stage</li>
+ *   <li>spawnWindow() automatically makes the new window active</li>
+ *   <li>focusSpawn() switches navigation to a specific spawned window</li>
+ *   <li>focusMainStage() returns navigation to the main window</li>
+ * </ul>
+ *
+ * <p>Example Usage:</p>
+ * <pre>{@code
+ * // Create router
+ * Router router = new Router(routes, "home", mainStage);
+ * 
+ * // Navigate on main window (default behavior)
+ * router.navigateTo("about");
+ * 
+ * // Spawn and navigate in new window
+ * router.spawnWindow("user/123");
+ * router.navigateTo("profile"); // Navigates in spawned window
+ * 
+ * // Return navigation to main window
+ * router.focusMainStage();
+ * router.navigateTo("home"); // Navigates in main window
+ * }</pre>
  */
 public class Router {
 
@@ -42,6 +68,7 @@ public class Router {
 
     private final Set<Route> routes;
     private final Stage mainStage;
+    private Stage currentActiveStage;
 
     /**
      * Represents a spawned (secondary) window managed by the router.
@@ -70,9 +97,26 @@ public class Router {
 
         this.routes = routes;
         this.mainStage = mainStage;
+        this.currentActiveStage = mainStage;
 
         Scene scene = resolveAndCreateScene(entrypointScreenName, mainStage);
         mainStage.setScene(scene);
+    }
+
+    /**
+     * Gets the currently active stage for navigation.
+     *
+     * <p>The active stage is:</p>
+     * <ul>
+     *   <li>The main stage by default</li>
+     *   <li>The most recently spawned window after spawnWindow()</li>
+     *   <li>Manually set via focusMainStage()</li>
+     * </ul>
+     * 
+     * @return the stage that should receive navigation commands, or null if not set
+     */
+    public Stage getCurrentActiveStage() {
+        return currentActiveStage;
     }
 
     /**
@@ -85,7 +129,10 @@ public class Router {
     }
 
     /**
-     * Navigates the main stage to a given route with error handling.
+     * Navigates the currently active stage to a given route with error handling.
+     *
+     * <p>The navigation target is determined by the current active stage:
+     * see {@link #getCurrentActiveStage()} for details on active stage management.</p>
      *
      * @param screenIdentification route identification to navigate to
      * @param errorHandler callback invoked if navigation fails
@@ -95,8 +142,9 @@ public class Router {
             Consumer<Exception> errorHandler
     ) {
         try {
-            Scene scene = resolveAndCreateScene(screenIdentification, mainStage);
-            mainStage.setScene(scene);
+            Stage targetStage = getCurrentActiveStage();
+            Scene scene = resolveAndCreateScene(screenIdentification, targetStage);
+            targetStage.setScene(scene);
         } catch (Exception e) {
             errorHandler.accept(e);
         }
@@ -129,9 +177,16 @@ public class Router {
                     )
             );
 
-            stage.setOnHidden(e ->
-                    spawnedWindows.removeIf(w -> w.stage() == stage)
-            );
+            stage.setOnHidden(e -> {
+                    spawnedWindows.removeIf(w -> w.stage() == stage);
+                    // Reset to main stage if this was the active stage
+                    if (currentActiveStage == stage) {
+                        currentActiveStage = mainStage;
+                    }
+                });
+
+                // Set this as the active stage when spawned
+                currentActiveStage = stage;
 
         } catch (Exception e) {
             errorHandler.accept(e);
@@ -168,11 +223,34 @@ public class Router {
         while (it.hasNext()) {
             SpawnedWindow window = it.next();
             if (window.identification().equals(identification)) {
+                // Reset active stage if closing the current active one
+                if (currentActiveStage == window.stage()) {
+                    currentActiveStage = mainStage;
+                }
                 window.stage().close();
                 it.remove();
                 return;
             }
         }
+    }
+
+    /**
+     * Sets the main stage as the active stage for navigation.
+     *
+     * <p>This method:</p>
+     * <ul>
+     *   <li>Brings the main stage to front</li>
+     *   <li>Requests focus for the main stage</li>
+     *   <li>Sets the main stage as the target for future navigateTo() calls</li>
+     * </ul>
+     *
+     * <p>Use this method when you want to redirect navigation
+     * back to the main window after working with spawned windows.</p>
+     */
+    public void focusMainStage() {
+        mainStage.toFront();
+        mainStage.requestFocus();
+        currentActiveStage = mainStage;
     }
 
     /**
