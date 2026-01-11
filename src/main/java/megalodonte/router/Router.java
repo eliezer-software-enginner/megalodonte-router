@@ -3,7 +3,7 @@ package megalodonte.router;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import megalodonte.components.Component;
+import megalodonte.base.ComponentInterface;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -315,7 +315,7 @@ public class Router {
     private Scene buildScene(Object screen, Route route)
             throws ReflectiveOperationException {
 
-        Component component = (Component) screen
+        var component = (ComponentInterface<?>) screen
                 .getClass()
                 .getMethod("render")
                 .invoke(screen);
