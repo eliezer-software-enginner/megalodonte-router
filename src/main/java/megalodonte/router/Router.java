@@ -315,10 +315,22 @@ public class Router {
     private Scene buildScene(Object screen, Route route)
             throws ReflectiveOperationException {
 
+        try {
+            var method = screen.getClass().getMethod("onMount");
+            method.invoke(screen);
+        } catch (NoSuchMethodException e) {
+            // onMount is optional - silently ignore if not present
+        } catch (IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
+            // Log error but don't fail navigation
+            System.err.println("Error executing onMount for screen " + screen.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+
         var component = (ComponentInterface<?>) screen
                 .getClass()
                 .getMethod("render")
                 .invoke(screen);
+
+
 
         return new Scene(
                 (Parent) component.getNode(),
