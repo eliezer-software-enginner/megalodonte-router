@@ -315,18 +315,15 @@ public class Router {
     private Scene buildScene(Object screen, Route route)
             throws ReflectiveOperationException {
 
-// Tenta primeiro a interface ScreenComponent (contrato recomendado)
         try {
-            Class<?> screenComponentClass = Class.forName("megalodonte.base.ScreenComponent");
-            if (screenComponentClass.isInstance(screen)) {
-                screenComponentClass.getMethod("onMount").invoke(screen);
-            } else {
-                // Fallback para telas legadas
-                callLegacyOnMount(screen);
-            }
-        } catch (ClassNotFoundException e) {
-            // Interface não disponível - usa fallback
-            callLegacyOnMount(screen);
+            var method = screen.getClass().getMethod("onMount");
+            method.invoke(screen);
+        }
+        catch (NoSuchMethodException e) {
+            // onMount is optional - silently ignore if not present
+        } catch (IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
+            // Log error but don't fail navigation
+            System.err.println("Error executing onMount for screen " + screen.getClass().getSimpleName() + ": " + e.getMessage());
         } catch (Exception e) {
             System.err.println("Error executing onMount for screen " + screen.getClass().getSimpleName() + ": " + e.getMessage());
         }
@@ -336,27 +333,12 @@ public class Router {
                 .getMethod("render")
                 .invoke(screen);
 
-
-
-return new Scene(
-                (Parent) component.getNode(),
-                route.props().screenWidth(),
-                route.props().screenHeight()
-        );
+        return new Scene(
+                        (Parent) component.getNode(),
+                        route.props().screenWidth(),
+                        route.props().screenHeight()
+                );
     }
-    
-    private void callLegacyOnMount(Object screen) {
-        try {
-            var method = screen.getClass().getMethod("onMount");
-            method.invoke(screen);
-        } catch (NoSuchMethodException e) {
-            // onMount is optional - silently ignore if not present
-        } catch (IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
-            // Log error but don't fail navigation
-            System.err.println("Error executing onMount for screen " + screen.getClass().getSimpleName() + ": " + e.getMessage());
-        }
-    }
-
     /**
      * Represents a resolved route with extracted parameters.
      */
